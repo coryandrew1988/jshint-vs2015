@@ -3,6 +3,7 @@
     using Microsoft.VisualStudio;
     using Microsoft.VisualStudio.Shell.Interop;
     using System;
+    using System.Collections.Generic;
 
     // https://msdn.microsoft.com/en-us/library/vstudio/bb166557%28v=vs.140%29.aspx
 
@@ -10,15 +11,9 @@
     {
         public class HandlerSet
         {
-            public Action<string> AfterSave { get; set; }
-        }
-
-        private class DocumentInfo
-        {
-            public uint flags, rLocks, wLocks, id;
-            public string doc;
-            public IntPtr data;
-            public IVsHierarchy hierarchy;
+            public Action<string> OnOpen { get; set; }
+            public Action<string> OnClose { get; set; }
+            public Action<string> OnSave { get; set; }
         }
 
         private uint rdtCookie;
@@ -33,14 +28,27 @@
             dt.AdviseRunningDocTableEvents(this, out rdtCookie);
         }
 
-        private DocumentInfo GetDocInfo(uint docCookie)
+        #region DocumentInfo
+
+        private class DocState
+        {
+            public uint flags, rLocks, wLocks, id;
+            public string doc;
+            public IntPtr data;
+            public IVsHierarchy hierarchy;
+        }
+
+        private Dictionary<uint, DocState> docInfoMap = new Dictionary<uint, DocState>();
+
+        private void OpenDoc(uint docCookie)
         {
             uint flags, rLocks, wLocks, id;
             string doc;
             IntPtr data;
             IVsHierarchy hierarchy;
             dt.GetDocumentInfo(docCookie, out flags, out rLocks, out wLocks, out doc, out hierarchy, out id, out data);
-            return new DocumentInfo
+
+            docInfoMap[docCookie] = new DocState
             {
                 flags = flags,
                 rLocks = rLocks,
@@ -52,22 +60,68 @@
             };
         }
 
+        private void CloseDoc(uint docCookie)
+        {
+            docInfoMap.Remove(docCookie);
+        }
+
+        private DocState GetDocState(uint docCookie)
+        {
+            DocState result;
+            if (docInfoMap.TryGetValue(docCookie, out result))
+            {
+                return result;
+            }
+
+            return null;
+        }
+
+        private bool IsDocOpen(uint docCookie)
+        {
+            return GetDocState(docCookie) != null;
+        }
+
+        #endregion
+
         #region Events
-
-        public int OnAfterAttributeChange(uint docCookie, uint grfAttribs)
-        {
-            return VSConstants.S_OK;
-        }
-
-        public int OnAfterFirstDocumentLock(uint docCookie, uint dwRDTLockType, uint dwReadLocksRemaining, uint dwEditLocksRemaining)
-        {
-            return VSConstants.S_OK;
-        }
 
         public int OnAfterSave(uint docCookie)
         {
-            var di = GetDocInfo(docCookie);
-            hs.AfterSave(di.doc);
+            var di = GetDocState(docCookie);
+            if (di != null)
+            {
+                hs.OnSave(di.doc);
+            }
+
+            return VSConstants.S_OK;
+        }
+
+        // This approach seems to work, but it's really unfortunate that I couldn't find a better way to observe simple document open/close events.
+
+        public int OnAfterFirstDocumentLock(uint docCookie, uint dwRDTLockType, uint dwReadLocksRemaining, uint dwEditLocksRemaining)
+        {
+            // Despite the suggestive "First" in the name, this event often fires multiple times.
+            // There's probably some good reason for that, but the documentation did not make this obvious.
+            if (!IsDocOpen(docCookie))
+            {
+                OpenDoc(docCookie);
+                var di = GetDocState(docCookie);
+                hs.OnOpen(di.doc);
+            }
+
+            return VSConstants.S_OK;
+        }
+
+        public int OnBeforeLastDocumentUnlock(uint docCookie, uint dwRDTLockType, uint dwReadLocksRemaining, uint dwEditLocksRemaining)
+        {
+            // Locks seem to both hit 0 if and only if the file is closed.
+            if (dwReadLocksRemaining == 0 && dwEditLocksRemaining == 0 && IsDocOpen(docCookie))
+            {
+                var di = GetDocState(docCookie);
+                CloseDoc(docCookie);
+                hs.OnClose(di.doc);
+            }
+
             return VSConstants.S_OK;
         }
 
@@ -81,7 +135,7 @@
             return VSConstants.S_OK;
         }
 
-        public int OnBeforeLastDocumentUnlock(uint docCookie, uint dwRDTLockType, uint dwReadLocksRemaining, uint dwEditLocksRemaining)
+        public int OnAfterAttributeChange(uint docCookie, uint grfAttribs)
         {
             return VSConstants.S_OK;
         }

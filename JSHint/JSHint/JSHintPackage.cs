@@ -58,6 +58,19 @@ namespace JSHint
         private Tester tester;
         private Logger logger;
 
+        private void TestDoc(string docName)
+        {
+            var r = tester.Test(docName);
+
+            logger.ClearDocument(docName);
+
+            if (r.IsFail)
+            foreach (var h in r.Hints)
+            {
+                logger.Log(h);
+            }
+        }
+
         protected override void Initialize()
         {
             base.Initialize();
@@ -67,15 +80,10 @@ namespace JSHint
 
             docWatcher = new DocumentWatcher(new DocumentWatcher.HandlerSet
             {
-                AfterSave = (docName) => {
+                OnSave = TestDoc,
+                OnOpen = TestDoc,
+                OnClose = (docName) => {
                     logger.ClearDocument(docName);
-
-                    var r = tester.Test(docName);
-                    if (r.IsFail)
-                    foreach (var h in r.Hints)
-                    {
-                        logger.Log(h);
-                    }
                 }
             }, this);
         }
