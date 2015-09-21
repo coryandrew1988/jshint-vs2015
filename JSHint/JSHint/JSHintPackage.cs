@@ -68,6 +68,8 @@ namespace JSHint
             docWatcher = new DocumentWatcher(new DocumentWatcher.HandlerSet
             {
                 AfterSave = (docName) => {
+                    logger.ClearDocument(docName);
+
                     var r = tester.Test(docName);
                     if (r.IsFail)
                     foreach (var h in r.Hints)

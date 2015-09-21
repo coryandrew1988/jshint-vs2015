@@ -5,24 +5,47 @@
     using Microsoft.VisualStudio.Shell.Interop;
     using Microsoft.VisualStudio.TextManager.Interop;
     using System;
+    using System.Collections.Generic;
     using System.Diagnostics;
 
     class Logger
     {
         private IServiceProvider sp;
         private ErrorListProvider elp;
+        private Dictionary<string, List<ErrorTask>> tasksDictionary;
 
         public Logger(IServiceProvider serviceProvider)
         {
             sp = serviceProvider;
+            tasksDictionary = new Dictionary<string, List<ErrorTask>>();
 
             elp = new ErrorListProvider(sp);
             elp.ProviderName = "Factory Guide Errors";
             elp.ProviderGuid = new Guid("5A10E43F-8D1D-4026-98C0-E6B502058901");
         }
 
+        public void ClearDocument(string docName)
+        {
+            List<ErrorTask> tasks;
+            if (!tasksDictionary.TryGetValue(docName, out tasks))
+            {
+                return;
+            }
+
+            foreach (var t in tasks)
+            {
+                elp.Tasks.Remove(t);
+            }
+        }
+
         public void Log(Hint hint)
         {
+            if (!tasksDictionary.ContainsKey(hint.Filename))
+            {
+                tasksDictionary.Add(hint.Filename, new List<ErrorTask>());
+            }
+            var tasks = tasksDictionary[hint.Filename];
+
             ErrorTask task = new ErrorTask
             {
                 Document = hint.Filename,
@@ -32,9 +55,10 @@
                 ErrorCategory = TaskErrorCategory.Message,
                 Category = TaskCategory.User
             };
-            task.Navigate += new EventHandler(NavigateText);
+            task.Navigate += NavigateText;
 
             elp.Tasks.Add(task);
+            tasks.Add(task);
         }
 
         private void NavigateText(object sender, EventArgs arguments)
