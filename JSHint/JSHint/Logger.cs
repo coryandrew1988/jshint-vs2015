@@ -36,6 +36,7 @@
             {
                 elp.Tasks.Remove(t);
             }
+            tasksDictionary.Remove(docName);
         }
 
         public void Log(Hint hint)
