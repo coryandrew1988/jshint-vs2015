@@ -3,7 +3,7 @@
   <Metadata>
     <Identity Id="JSHint.Microsoft.98c34912-2f1a-493f-a40a-f4c87c331368" Version="1.0" Language="en-US" Publisher="Microsoft" />
     <DisplayName>JSHint</DisplayName>
-    <Description>Empty VSIX Project.</Description>
+    <Description xml:space="preserve">Runs JSHint when a .js file is saved, then puts messages into the Error List window.Runs JSHint </Description>
   </Metadata>
   <Installation>
     <InstallationTarget Id="Microsoft.VisualStudio.Community" Version="[14.0]" />
