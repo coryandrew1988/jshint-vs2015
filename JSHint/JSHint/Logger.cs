@@ -54,7 +54,7 @@
                 Column = hint.ColumnNumber - 1,
                 Text = hint.Message,
                 ErrorCategory = TaskErrorCategory.Message,
-                Category = TaskCategory.User
+                Category = TaskCategory.BuildCompile
             };
             task.Navigate += NavigateText;
 
